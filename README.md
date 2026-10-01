@@ -28,7 +28,7 @@ Not published to npm - install straight from GitHub, pinned to a tag, same patte
 SDK (SwiftPM from a git tag) and the Kotlin SDK (JitPack from a git tag):
 
 ```bash
-npm install github:amaxaaaaacko/react-native-sdk#v0.1.0
+npm install github:amaxaaaaacko/react-native-sdk#v0.1.1
 ```
 
 ### Peer dependencies

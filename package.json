@@ -1,6 +1,6 @@
 {
   "name": "miamore-react-native-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MiaMore React Native SDK: paywalls, subscription status, purchases (via expo-iap), and attribution.",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
