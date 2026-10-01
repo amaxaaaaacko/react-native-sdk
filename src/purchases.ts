@@ -5,26 +5,27 @@ import {
   requestPurchase,
   finishTransaction,
   getAvailablePurchases,
+  restorePurchases as nativeRestorePurchases,
   purchaseUpdatedListener,
   purchaseErrorListener,
   ErrorCode,
   type Purchase,
-  type PurchaseError as IapPurchaseError,
-} from 'react-native-iap';
+} from 'expo-iap';
 import { requireConfiguration } from './MiaMoreSDK';
 import { link } from './subscriptionStatus';
 
 /**
- * Wraps `react-native-iap` (OpenIAP/Nitro-based, v16+) for subscription purchases. Mirrors the
- * purchase/restore surface of Purchases.swift / Purchases.kt as closely as the underlying
- * libraries (StoreKit 2 vs Play Billing vs react-native-iap) allow - see this package's README's
- * "Differences from the native SDKs" section for the couple of unavoidable shape differences.
+ * Wraps `expo-iap` (OpenIAP-based, v5+) for subscription purchases. Mirrors the purchase/restore
+ * surface of Purchases.swift / Purchases.kt as closely as the underlying libraries (StoreKit 2 vs
+ * Play Billing vs expo-iap) allow - see this package's README's "Differences from the native SDKs"
+ * section for the couple of unavoidable shape differences.
  *
- * All react-native-iap field names used here were verified against the shipped v16.7.2 type
- * declarations (not just its docs site, which was out of date in places at the time this was
- * written) - see RequestSubscriptionAndroidProps/RequestSubscriptionIosProps, SubscriptionOffer,
- * PurchaseCommon/PurchaseIOS/PurchaseAndroid in react-native-iap's types.d.ts if this ever needs
- * re-verifying against a newer major version.
+ * Uses `expo-iap`, not `react-native-iap` - both are OpenIAP implementations with an identical
+ * generated API (verified field-for-field against expo-iap's shipped v5.8.2 type declarations),
+ * but `expo-iap` ships its own Expo config plugin (auto-configures native iOS/Android project files
+ * during `npx expo prebuild`) instead of requiring `react-native-nitro-modules` + manual Podfile/
+ * Gradle edits. Neither Expo Go nor a bare React Native app without the Expo module runtime can use
+ * this - see the README's Installation section.
  */
 
 export type PurchaseOutcome =
@@ -90,14 +91,14 @@ function registerListenersOnce(): void {
     void handlePurchaseUpdate(purchase);
   });
 
-  purchaseErrorListener((error: IapPurchaseError) => {
+  purchaseErrorListener((error) => {
     const current = pending;
     pending = null;
     if (!current) return; // Error for a purchase we're not awaiting (e.g. background reconciliation) - nothing to resolve.
     if (error.code === ErrorCode.UserCancelled) {
       current.resolve({ type: 'user_cancelled' });
     } else {
-      current.reject({ type: 'iap_error', code: error.code, message: error.message } satisfies PurchaseError);
+      current.reject({ type: 'iap_error', code: String(error.code ?? 'unknown'), message: error.message } satisfies PurchaseError);
     }
   });
 }
@@ -202,12 +203,15 @@ export async function purchase(productId: string, options: PurchaseOptions = {})
 }
 
 /**
- * Restore purchases via `getAvailablePurchases()` - the closest equivalent of the Swift SDK's
- * `restore()` (`AppStore.sync()` + current entitlements) and the Kotlin SDK's `restore()`
- * (`queryPurchasesAsync`). Acknowledges anything left unacknowledged and best-effort re-links each.
+ * Restore purchases - the closest equivalent of the Swift SDK's `restore()` (`AppStore.sync()` +
+ * current entitlements) and the Kotlin SDK's `restore()` (`queryPurchasesAsync`). Per expo-iap's
+ * own docs, `restorePurchases()` itself returns nothing (it just triggers the platform
+ * sync/restore); the restored items are then read back via `getAvailablePurchases()`.
+ * Acknowledges anything left unacknowledged and best-effort re-links each.
  */
 export async function restorePurchases(): Promise<PurchaseOutcome[]> {
   await ensureConnected();
+  await nativeRestorePurchases();
   const purchases = await getAvailablePurchases();
   const outcomes: PurchaseOutcome[] = [];
   for (const p of purchases) {

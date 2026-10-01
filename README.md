@@ -1,9 +1,9 @@
 # MiaMore React Native SDK
 
-React Native SDK for MiaMore. Fetches **paywalls/products**, supports **subscription
-purchases** (via [`react-native-iap`](https://www.openiap.dev/) v16+, the OpenIAP/Nitro-based
-successor to the older `react-native-iap`), and fetches **subscription status** from the backend.
-It's the third MiaMore client SDK, alongside
+React Native SDK for MiaMore, **for Expo projects**. Fetches **paywalls/products**, supports
+**subscription purchases** (via [`expo-iap`](https://www.openiap.dev/) v5+, the OpenIAP-based IAP
+library built for Expo's module/config-plugin system), and fetches **subscription status** from
+the backend. It's the third MiaMore client SDK, alongside
 [`miamore-swift-sdk`](https://github.com/amaxaaaaacko/miamore-swift-sdk) (iOS) and
 [`miamore-kotlin-sdk`](https://github.com/amaxaaaaacko/miamore-kotlin-sdk) (Android) - this
 package mirrors their API shape as closely as a single cross-platform JS runtime allows. See
@@ -12,6 +12,13 @@ unavoidable gaps.
 
 > The SDK is **one library** shared across projects. You do **not** hardcode bundle ids per
 > build. Each app uses its own `bundleId` and `apiKey` configured in AdminJS.
+
+> **Expo only.** Purchases are implemented on top of `expo-iap`, which requires the Expo module
+> runtime (a bare React Native project without Expo installed cannot use `purchase()`/
+> `restorePurchases()`). `expo-iap` and the older `react-native-iap` are both OpenIAP
+> implementations with an otherwise identical generated API, so a future bare-RN variant of this
+> SDK - if ever needed - would mostly be a matter of swapping the import in `src/purchases.ts`, not
+> a rewrite.
 
 ---
 
@@ -22,32 +29,45 @@ SDK (SwiftPM from a git tag) and the Kotlin SDK (JitPack from a git tag):
 
 ```bash
 npm install github:amaxaaaaacko/react-native-sdk#v0.1.0
-# or
-yarn add github:amaxaaaaacko/react-native-sdk#v0.1.0
 ```
 
 ### Peer dependencies
 
-This package has no native code of its own - it's pure TypeScript - but subscription purchases
-are implemented on top of `react-native-iap`, which does. Install its peers too:
+This package has no native code of its own - it's pure TypeScript - but subscription purchases are
+implemented on top of `expo-iap`, which does:
 
 ```bash
-npm install react-native-iap react-native-nitro-modules @react-native-async-storage/async-storage
+npx expo install expo-iap @react-native-async-storage/async-storage
 ```
 
-Then follow [`react-native-iap`'s own setup guide](https://www.openiap.dev/docs/setup/react-native)
-for the iOS Podfile / Android Gradle steps it requires.
+Add the config plugin to `app.json` (it configures the native iOS/Android project files for you
+during `npx expo prebuild` - no manual Podfile/Gradle editing):
 
-**Requirements** (inherited from `react-native-iap` v16+): React Native 0.79+, iOS 15.0+, Android
-`minSdkVersion` 23+ / `compileSdkVersion` 36+.
+```json
+{
+  "expo": {
+    "plugins": ["expo-iap"]
+  }
+}
+```
 
-### Expo
+On iOS, also enable the **In-App Purchase** capability (Xcode: Target → Signing & Capabilities →
++ Capability → In-App Purchase) and set a deployment target matching your Expo SDK version (e.g.
+`"ios": { "deploymentTarget": "16.4" }` for Expo SDK 57+).
 
-`react-native-nitro-modules` has native code, so purchases **do not work in Expo Go**. Use a
+**Requirements** (inherited from `expo-iap`): Android `minSdkVersion` 23+ / `compileSdkVersion`
+36+. See [`expo-iap`'s own installation guide](https://www.openiap.dev/docs/setup/expo) for the
+current details - this SDK just wraps it, it doesn't fork or pin its native requirements.
+
+### Expo Go
+
+In-app purchases need native modules that **are not available in Expo Go** - this is true of every
+IAP library, not specific to `expo-iap`. Use a
 [custom dev client](https://docs.expo.dev/develop/development-builds/introduction/)
-(`npx expo prebuild` + `eas build` / `expo run:ios` / `expo run:android`). Everything else in this
-SDK (paywalls, subscription status, attribution, activity tracking) is plain JS/fetch and works
-fine in Expo Go on its own - only `purchase()`/`restorePurchases()` need the dev client.
+(`npx expo prebuild` + `eas build --profile development`, or `expo run:ios` / `expo run:android`
+locally). Everything else in this SDK (paywalls, subscription status, attribution, activity
+tracking) is plain JS/fetch and works fine in Expo Go on its own - only `purchase()`/
+`restorePurchases()` need the dev client.
 
 ---
 
@@ -205,12 +225,12 @@ This SDK uses `async`/`await` throughout. Thrown errors are plain discriminated-
 
 ## Differences from the native SDKs
 
-Purchases on Android/iOS fundamentally differ (Play Billing vs StoreKit), and `react-native-iap`
+Purchases on Android/iOS fundamentally differ (Play Billing vs StoreKit), and `expo-iap`
 adds its own abstraction on top - a few shape differences are unavoidable and intentional, not
 bugs:
 
 - **No single purchase outcome type across retries.** `requestPurchase()` doesn't return the
-  purchase result directly (it's delivered async via `react-native-iap`'s event listeners); this
+  purchase result directly (it's delivered async via `expo-iap`'s event listeners); this
   SDK bridges that into a normal awaitable `purchase()` promise for you, but if `requestPurchase`
   throws synchronously (e.g. invalid arguments) vs. the listener reporting failure, see
   `PurchaseError.iap_error` either way.
@@ -220,13 +240,13 @@ bugs:
 - **`accountId`** is this SDK's one name for what the Swift SDK calls `appAccountToken` and the
   Kotlin SDK calls `obfuscatedAccountId` - same purpose (a stable per-install id for linking a
   purchase to `customerUserId`), unified here since one app targets both platforms.
-- **Expo Go cannot run purchases** (see [Expo](#expo) above) - the only client-side constraint
-  that doesn't exist on native iOS/Android at all.
+- **Expo Go cannot run purchases** (see [Expo Go](#expo-go) above) - the only client-side
+  constraint that doesn't exist on native iOS/Android at all.
 
 ---
 
 ## Threads / Concurrency
 
-Everything here is `async`/`await` over `fetch` and `react-native-iap`'s own async APIs - safe to
+Everything here is `async`/`await` over `fetch` and `expo-iap`'s own async APIs - safe to
 call from any context. There's no main-thread/actor constraint to worry about like the Swift SDK's
 `@MainActor`, since JS has no cross-thread concerns of that kind.
