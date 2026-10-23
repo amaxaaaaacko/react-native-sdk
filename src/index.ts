@@ -26,10 +26,11 @@ export type {
   PaywallResponse,
   Commitment,
   SubscriptionStatus,
+  WebClaimResult,
 } from './types';
 
 export { getPaywall, type GetPaywallOptions } from './paywalls';
-export { getSubscriptionStatus, link, type LinkParams } from './subscriptionStatus';
+export { getSubscriptionStatus, link, claimWebPurchase, type LinkParams } from './subscriptionStatus';
 export {
   setAppsflyerIntegrationIdentifier,
   setFirebaseIntegrationIdentifier,

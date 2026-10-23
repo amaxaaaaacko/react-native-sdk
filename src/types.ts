@@ -177,4 +177,12 @@ function inactiveSubscriptionStatus(environment: Environment): SubscriptionStatu
   };
 }
 
+/** Result of `claimWebPurchase`. Mirrors `MiaMoreWebClaimResult` (Swift) / `WebClaimResult` (Kotlin). */
+export interface WebClaimResult {
+  /** Whether any web purchase with this email exists for the app (active or not). */
+  found: boolean;
+  /** Subscription status fetched right after the claim. Unlock from `status.isActive`. */
+  status: SubscriptionStatus;
+}
+
 export const SubscriptionStatusDefaults = { inactive: inactiveSubscriptionStatus };

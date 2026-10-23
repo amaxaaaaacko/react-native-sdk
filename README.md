@@ -28,7 +28,7 @@ Not published to npm - install straight from GitHub, pinned to a tag, same patte
 SDK (SwiftPM from a git tag) and the Kotlin SDK (JitPack from a git tag):
 
 ```bash
-npm install github:amaxaaaaacko/react-native-sdk#v0.1.2
+npm install github:amaxaaaaacko/react-native-sdk#v0.1.3
 ```
 
 ### Peer dependencies
@@ -179,6 +179,26 @@ fields, since Android/web-only subscriptions don't have an `originalTransactionI
 email the user restored a purchase with), or `null` when unknown. A web-funnel buyer who opens the app
 through a deep link carrying the provider customer id (`ctm_…`, `cus_…`) as `customerUserId` gets both
 access and this email from one `getSubscriptionStatus()` call.
+
+### Restoring a web purchase by email
+
+A web-funnel buyer normally unlocks through the deep link that carries the provider customer id (`ctm_…`, `cus_…`)
+used as `customerUserId`. If the deep link is lost (reinstall, another device), ask for the email they paid with:
+
+```ts
+import { claimWebPurchase } from 'miamore-react-native-sdk';
+
+const result = await claimWebPurchase(email);
+if (result.status.isActive) {
+  // unlock premium
+} else if (!result.found) {
+  // "No purchase found for this email"
+}
+```
+
+Server endpoint: `POST /v1/sdk/webClaim`. The email is saved on the profile even when nothing matches yet, so a purchase
+whose webhook arrives later unlocks on the next `getSubscriptionStatus()`. It is not verified by design. A malformed
+email throws `{ type: 'http_error', status: 400 }`.
 
 ### Manual linking
 
