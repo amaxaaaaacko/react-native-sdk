@@ -10,7 +10,7 @@ export type Environment = 'PROD' | 'SANDBOX' | 'UNKNOWN';
 export type SubscriptionSource = 'app_store' | 'web' | 'android' | 'unknown';
 
 /** Web payment provider, present when `source === 'web'`. Unrecognized values map to 'unknown' - mirrors the lenient decoding in the Swift/Kotlin SDKs. */
-export type PaymentProvider = 'stripe' | 'solidgate' | 'unknown';
+export type PaymentProvider = 'stripe' | 'solidgate' | 'paddle' | 'unknown';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'none';
 
@@ -74,6 +74,8 @@ export interface SubscriptionStatus {
   billingPlanType: string | null;
   commitment: Commitment | null;
   updatedAt: string | null;
+  /** Payer email: from the web purchase (Stripe/Solidgate/Paddle), else the email the user restored a purchase with. `null` when unknown or on older backend responses. */
+  customerEmail: string | null;
 }
 
 function toPaymentProvider(raw: unknown): PaymentProvider | null {
@@ -81,6 +83,7 @@ function toPaymentProvider(raw: unknown): PaymentProvider | null {
   const s = String(raw).trim().toLowerCase();
   if (s === 'stripe') return 'stripe';
   if (s === 'solidgate') return 'solidgate';
+  if (s === 'paddle') return 'paddle';
   return 'unknown';
 }
 
@@ -143,6 +146,7 @@ export function mapSubscriptionStatus(json: any): SubscriptionStatus {
         }
       : null,
     updatedAt: json.updated_at ?? null,
+    customerEmail: json.customer_email ?? null,
   };
 }
 
@@ -169,6 +173,7 @@ function inactiveSubscriptionStatus(environment: Environment): SubscriptionStatu
     billingPlanType: null,
     commitment: null,
     updatedAt: null,
+    customerEmail: null,
   };
 }
 

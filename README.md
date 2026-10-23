@@ -28,7 +28,7 @@ Not published to npm - install straight from GitHub, pinned to a tag, same patte
 SDK (SwiftPM from a git tag) and the Kotlin SDK (JitPack from a git tag):
 
 ```bash
-npm install github:amaxaaaaacko/react-native-sdk#v0.1.1
+npm install github:amaxaaaaacko/react-native-sdk#v0.1.2
 ```
 
 ### Peer dependencies
@@ -174,6 +174,11 @@ if (status.isActive) {
 `status.source` is `'app_store'`, `'android'`, `'web'`, or `null`/`'unknown'` for an older/
 unrecognized backend response. Always unlock from `status.isActive` - don't branch only on Apple
 fields, since Android/web-only subscriptions don't have an `originalTransactionId`.
+
+`status.customerEmail` is the payer email (from the web purchase - Stripe/Solidgate/Paddle - or the
+email the user restored a purchase with), or `null` when unknown. A web-funnel buyer who opens the app
+through a deep link carrying the provider customer id (`ctm_…`, `cus_…`) as `customerUserId` gets both
+access and this email from one `getSubscriptionStatus()` call.
 
 ### Manual linking
 

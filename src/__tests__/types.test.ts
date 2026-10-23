@@ -77,6 +77,24 @@ describe('mapSubscriptionStatus', () => {
     expect(result.storeId).toBe('google_play');
   });
 
+  it('maps a paddle web subscription with the payer email, and null email on older responses', () => {
+    const result = mapSubscriptionStatus({
+      is_active: true,
+      expires_at: '2026-10-28T11:44:12.045Z',
+      environment: 'SANDBOX',
+      source: 'web',
+      provider: 'paddle',
+      provider_customer_id: 'ctm_01m5f46kva59gdsahm2m4v203j',
+      trial_type: 'paid_trial',
+      customer_email: 'buyer@example.com',
+    });
+
+    expect(result.provider).toBe('paddle');
+    expect(result.providerCustomerId).toBe('ctm_01m5f46kva59gdsahm2m4v203j');
+    expect(result.customerEmail).toBe('buyer@example.com');
+    expect(mapSubscriptionStatus({ is_active: false, environment: 'PROD' }).customerEmail).toBeNull();
+  });
+
   it('treats an unrecognized source as unknown rather than throwing', () => {
     const result = mapSubscriptionStatus({ is_active: false, source: 'some_future_platform' });
     expect(result.source).toBe('unknown');
