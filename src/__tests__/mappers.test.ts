@@ -1,4 +1,4 @@
-import { mapPaywallResponse, mapSubscriptionStatus, SubscriptionStatusDefaults } from '../types';
+import { inactiveSubscriptionStatus, mapPaywallResponse, mapSubscriptionStatus } from '../mappers';
 
 describe('mapPaywallResponse', () => {
   it('maps a full paywall response, including the offer_token/billing_plan_type passthroughs', () => {
@@ -23,8 +23,14 @@ describe('mapPaywallResponse', () => {
     expect(result.appBundleId).toBe('com.example.app');
     expect(result.assignment).toEqual({ experimentId: 'exp-1', variantId: 'var-1', bucket: 3 });
     expect(result.paywall.products).toHaveLength(3);
-    expect(result.paywall.products[1]).toMatchObject({ productId: 'yearly', billingPlanType: 'monthly' });
-    expect(result.paywall.products[2]).toMatchObject({ productId: 'android_sub', offerToken: 'offer-abc' });
+    expect(result.paywall.products[1]).toMatchObject({
+      productId: 'yearly',
+      billingPlanType: 'monthly',
+    });
+    expect(result.paywall.products[2]).toMatchObject({
+      productId: 'android_sub',
+      offerToken: 'offer-abc',
+    });
   });
 
   it('defaults placement/assignment to null when absent', () => {
@@ -92,7 +98,9 @@ describe('mapSubscriptionStatus', () => {
     expect(result.provider).toBe('paddle');
     expect(result.providerCustomerId).toBe('ctm_01m5f46kva59gdsahm2m4v203j');
     expect(result.customerEmail).toBe('buyer@example.com');
-    expect(mapSubscriptionStatus({ is_active: false, environment: 'PROD' }).customerEmail).toBeNull();
+    expect(
+      mapSubscriptionStatus({ is_active: false, environment: 'PROD' }).customerEmail,
+    ).toBeNull();
   });
 
   it('treats an unrecognized source as unknown rather than throwing', () => {
@@ -101,7 +109,11 @@ describe('mapSubscriptionStatus', () => {
   });
 
   it('builds a correct inactive default for the not_linked case', () => {
-    const result = SubscriptionStatusDefaults.inactive('SANDBOX');
-    expect(result).toMatchObject({ isActive: false, environment: 'SANDBOX', originalTransactionId: '' });
+    const result = inactiveSubscriptionStatus('SANDBOX');
+    expect(result).toMatchObject({
+      isActive: false,
+      environment: 'SANDBOX',
+      originalTransactionId: '',
+    });
   });
 });
