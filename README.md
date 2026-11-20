@@ -142,13 +142,22 @@ returns to the foreground:
 
 ```ts
 useEffect(() => {
-  client?.trackAppOpen().catch(() => {});
-}, [client]);
+  if (!client) return;
 
-AppState.addEventListener('change', (state) => {
-  if (state === 'active') client?.trackAppOpen().catch(() => {});
-});
+  const track = () => client.trackAppOpen().catch(() => {});
+
+  track();
+
+  const subscription = AppState.addEventListener('change', (state) => {
+    if (state === 'active') track();
+  });
+
+  return () => subscription.remove();
+}, [client]);
 ```
+
+This uses React Native's `AppState`. On the web, use the same pattern with `document`'s
+`visibilitychange` event.
 
 Each client sends at most one event per 30 minutes (kept in memory); a failed send is retried on the
 next call.
