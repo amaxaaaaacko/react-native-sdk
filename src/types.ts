@@ -1,32 +1,27 @@
-/**
- * Mirrors miamore-swift-sdk's Types.swift / miamore-kotlin-sdk's Types.kt. Field names here are
- * camelCase (idiomatic JS/TS) even though the backend speaks snake_case - see the `mapX` functions
- * in this file, which are the single place that translates wire JSON into these shapes.
- */
+import type { createMiaMoreClient } from './client';
 
 export type Environment = 'PROD' | 'SANDBOX' | 'UNKNOWN';
 
-/** Where the active entitlement came from. `null`/undefined means an older backend response. */
 export type SubscriptionSource = 'app_store' | 'web' | 'android' | 'unknown';
 
-/** Web payment provider, present when `source === 'web'`. Unrecognized values map to 'unknown' - mirrors the lenient decoding in the Swift/Kotlin SDKs. */
 export type PaymentProvider = 'stripe' | 'solidgate' | 'paddle' | 'unknown';
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'none';
-
-export interface ProductRef {
+/** A paywall product. The same store product can appear several times with different plans. */
+export interface Product {
+  /** Store product id (App Store / Google Play). */
   productId: string;
+  /** Display order within the paywall. */
   sort?: number;
-  /** Apple-only: up_front | monthly (12-month commitment). No Android equivalent - see offerToken. */
+  /** Apple only: `up_front` or `monthly` (paid monthly with a 12-month commitment). */
   billingPlanType?: string;
-  /** Google Play Billing's base-plan/offer selector (offerTokenAndroid from react-native-iap's fetchProducts). No Apple equivalent. */
+  /** Google Play only: base plan / offer token to buy. */
   offerToken?: string;
 }
 
 export interface Paywall {
   paywallId: string;
   name: string;
-  products: ProductRef[];
+  products: Product[];
 }
 
 export interface Assignment {
@@ -51,16 +46,22 @@ export interface Commitment {
   autoRenewStatus: string | null;
 }
 
+/** A user's subscription as MiaMore sees it, across App Store, Google Play and web purchases. */
 export interface SubscriptionStatus {
+  /** Whether the user has access now. Unlock from this field only. */
   isActive: boolean;
+  /** ISO date the current period ends, if known. */
   expiresAt: string | null;
   environment: Environment;
-  /** Present for App Store subscriptions. Empty for Android/web-only subscriptions. */
+  /** App Store original transaction id; empty for Google Play and web subscriptions. */
   originalTransactionId: string;
+  /** Where the subscription was bought; `null` on older backend responses. */
   source: SubscriptionSource | null;
+  /** Web payment provider, set when `source` is `web`. */
   provider: PaymentProvider | null;
   providerAccountId: string | null;
   providerChannelId: string | null;
+  /** Web provider's customer id, e.g. a Paddle `ctm_…` id. */
   providerCustomerId: string | null;
   providerSubscriptionId: string | null;
   storeId: string | null;
@@ -70,119 +71,32 @@ export interface SubscriptionStatus {
   productId: string | null;
   priceId: string | null;
   entitlementId: string | null;
+  /** Trial kind, e.g. `free_trial` or `paid_trial`; `null` when not in a trial. */
   trialType: string | null;
+  /** Apple billing plan of the active product: `up_front` or `monthly`. */
   billingPlanType: string | null;
+  /** Commitment details for monthly-billed plans with a 12-month commitment. */
   commitment: Commitment | null;
   updatedAt: string | null;
-  /** Payer email: from the web purchase (Stripe/Solidgate/Paddle), else the email the user restored a purchase with. `null` when unknown or on older backend responses. */
+  /** Payer email from a web purchase, or the email used to restore one; `null` when unknown. */
   customerEmail: string | null;
 }
 
-function toPaymentProvider(raw: unknown): PaymentProvider | null {
-  if (raw == null) return null;
-  const s = String(raw).trim().toLowerCase();
-  if (s === 'stripe') return 'stripe';
-  if (s === 'solidgate') return 'solidgate';
-  if (s === 'paddle') return 'paddle';
-  return 'unknown';
+/** Settings for one MiaMore client. */
+export interface MiaMoreConfig {
+  /** MiaMore SDK service URL. A trailing slash is fine. */
+  baseUrl: string;
+  /** App key registered in AdminJS: iOS bundle id / Android package name. */
+  bundleId: string;
+  /** Per-app SDK API key from AdminJS. Ships inside the app, so it is public. */
+  apiKey: string;
+  /** Id entitlements are keyed by. Keep it stable: purchases are linked to it. */
+  customerUserId: string;
+  /** Stable per-install id sent when linking. Pass the same value to the store as `appAccountToken` / `obfuscatedAccountId`. */
+  accountId: string;
+  /** `PROD` (default) or `SANDBOX`. */
+  environment?: Environment;
 }
 
-function toSubscriptionSource(raw: unknown): SubscriptionSource | null {
-  if (raw == null) return null;
-  const s = String(raw).trim().toLowerCase();
-  if (s === 'app_store' || s === 'web' || s === 'android') return s;
-  return 'unknown';
-}
-
-export function mapPaywallResponse(json: any): PaywallResponse {
-  return {
-    appBundleId: json.app_bundle_id,
-    customerUserId: json.customer_user_id,
-    placement: json.placement ?? null,
-    assignment: json.assignment
-      ? { experimentId: json.assignment.experiment_id, variantId: json.assignment.variant_id, bucket: json.assignment.bucket }
-      : null,
-    paywall: {
-      paywallId: json.paywall.paywall_id,
-      name: json.paywall.name,
-      products: (json.paywall.products ?? []).map((p: any) => ({
-        productId: p.product_id,
-        sort: p.sort ?? undefined,
-        billingPlanType: p.billing_plan_type ?? undefined,
-        offerToken: p.offer_token ?? undefined,
-      })),
-    },
-  };
-}
-
-export function mapSubscriptionStatus(json: any): SubscriptionStatus {
-  return {
-    isActive: Boolean(json.is_active),
-    expiresAt: json.expires_at ?? null,
-    environment: (json.environment ?? 'PROD') as Environment,
-    originalTransactionId: json.original_transaction_id ?? '',
-    source: toSubscriptionSource(json.source),
-    provider: toPaymentProvider(json.provider),
-    providerAccountId: json.provider_account_id ?? null,
-    providerChannelId: json.provider_channel_id ?? null,
-    providerCustomerId: json.provider_customer_id ?? null,
-    providerSubscriptionId: json.provider_subscription_id ?? null,
-    storeId: json.store_id ?? null,
-    storeType: json.store_type ?? null,
-    externalProductId: json.external_product_id ?? null,
-    currentSubscriptionStatus: json.current_subscription_status ?? null,
-    productId: json.product_id ?? null,
-    priceId: json.price_id ?? null,
-    entitlementId: json.entitlement_id ?? null,
-    trialType: json.trial_type ?? null,
-    billingPlanType: json.billing_plan_type ?? null,
-    commitment: json.commitment
-      ? {
-          expirationDate: json.commitment.expiration_date ?? null,
-          billingPeriodNumber: json.commitment.billing_period_number ?? null,
-          totalBillingPeriods: json.commitment.total_billing_periods ?? null,
-          totalPrice: json.commitment.total_price ?? null,
-          autoRenewStatus: json.commitment.auto_renew_status ?? null,
-        }
-      : null,
-    updatedAt: json.updated_at ?? null,
-    customerEmail: json.customer_email ?? null,
-  };
-}
-
-function inactiveSubscriptionStatus(environment: Environment): SubscriptionStatus {
-  return {
-    isActive: false,
-    expiresAt: null,
-    environment,
-    originalTransactionId: '',
-    source: null,
-    provider: null,
-    providerAccountId: null,
-    providerChannelId: null,
-    providerCustomerId: null,
-    providerSubscriptionId: null,
-    storeId: null,
-    storeType: null,
-    externalProductId: null,
-    currentSubscriptionStatus: null,
-    productId: null,
-    priceId: null,
-    entitlementId: null,
-    trialType: null,
-    billingPlanType: null,
-    commitment: null,
-    updatedAt: null,
-    customerEmail: null,
-  };
-}
-
-/** Result of `claimWebPurchase`. Mirrors `MiaMoreWebClaimResult` (Swift) / `WebClaimResult` (Kotlin). */
-export interface WebClaimResult {
-  /** Whether any web purchase with this email exists for the app (active or not). */
-  found: boolean;
-  /** Subscription status fetched right after the claim. Unlock from `status.isActive`. */
-  status: SubscriptionStatus;
-}
-
-export const SubscriptionStatusDefaults = { inactive: inactiveSubscriptionStatus };
+/** MiaMore backend client returned by `useMiaMore()`. */
+export type MiaMoreClient = ReturnType<typeof createMiaMoreClient>;
