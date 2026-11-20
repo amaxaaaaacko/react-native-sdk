@@ -242,6 +242,36 @@ describe('trackAppOpen', () => {
     expect(calls).toHaveLength(2);
   });
 
+  it("does not let a late failure reset a newer send's throttle", async () => {
+    jest.useFakeTimers({ now: new Date('2026-01-01T00:00:00Z') });
+
+    let failFirst: () => void = () => {};
+    const fetchMock = jest.fn((): Promise<Response> => {
+      if (fetchMock.mock.calls.length === 1) {
+        return new Promise((resolve) => {
+          failFirst = () => resolve({ status: 500, text: async () => '{}' } as Response);
+        });
+      }
+
+      return Promise.resolve({ status: 200, text: async () => '{"ok":true}' } as Response);
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const client = createMiaMoreClient(CONFIG);
+    const first = client.trackAppOpen();
+
+    jest.setSystemTime(new Date('2026-01-01T00:31:00Z'));
+    await client.trackAppOpen();
+
+    failFirst();
+    await expect(first).rejects.toMatchObject({ status: 500 });
+
+    jest.setSystemTime(new Date('2026-01-01T00:32:00Z'));
+    await client.trackAppOpen();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps a separate throttle per client', async () => {
     const calls = stubFetch({ '/v1/sdk/appOpen': [200, { ok: true }] });
 

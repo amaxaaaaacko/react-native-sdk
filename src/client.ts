@@ -137,7 +137,9 @@ export const createMiaMoreClient = (options: MiaMoreConfig) => {
 
       throwIfError(result);
     } catch (error) {
-      lastAppOpenAt = 0;
+      if (lastAppOpenAt === now) {
+        lastAppOpenAt = 0;
+      }
 
       throw error;
     }
